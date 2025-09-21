@@ -38,8 +38,61 @@ regd_users.post("/login", (req,res) => {
 
 // Add a book review
 regd_users.put("/auth/review/:isbn", (req, res) => {
-  //Write your code here
-  return res.status(300).json({message: "Yet to be implemented"});
+  const { isbn } = req.params;
+  const review = req.query.review;
+
+  if (!isbn) {
+    return res.status(400).json({ message: "ISBN is required" });
+  }
+  if (!review || typeof review !== 'string' || review.trim() === '') {
+    return res.status(400).json({ message: "Review query parameter is required" });
+  }
+
+  // Username from verified JWT (set by auth middleware) or session fallback
+  const username = (req.user && req.user.username) || (req.session && req.session.authorization && req.session.authorization.username);
+  if (!username) {
+    return res.status(401).json({ message: "User not authenticated" });
+  }
+
+  const book = books[isbn];
+  if (!book) {
+    return res.status(404).json({ message: "Book not found" });
+  }
+
+  if (!book.reviews) book.reviews = {};
+  const exists = Object.prototype.hasOwnProperty.call(book.reviews, username);
+  book.reviews[username] = review;
+
+  return res.status(200).json({
+    message: `Review ${exists ? 'updated' : 'added'} for ISBN ${isbn}`,
+    reviews: book.reviews
+  });
+});
+
+// Delete a book review (by logged-in user)
+regd_users.delete("/auth/review/:isbn", (req, res) => {
+  const { isbn } = req.params;
+
+  if (!isbn) {
+    return res.status(400).json({ message: "ISBN is required" });
+  }
+
+  const username = (req.user && req.user.username) || (req.session && req.session.authorization && req.session.authorization.username);
+  if (!username) {
+    return res.status(401).json({ message: "User not authenticated" });
+  }
+
+  const book = books[isbn];
+  if (!book) {
+    return res.status(404).json({ message: "Book not found" });
+  }
+
+  if (!book.reviews || !Object.prototype.hasOwnProperty.call(book.reviews, username)) {
+    return res.status(404).json({ message: "No review by this user for this book" });
+  }
+
+  delete book.reviews[username];
+  return res.status(200).json({ message: `Review deleted for ISBN ${isbn}`, reviews: book.reviews });
 });
 
 module.exports.authenticated = regd_users;
